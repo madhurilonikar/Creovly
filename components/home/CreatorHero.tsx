@@ -1,10 +1,43 @@
+'use client';
+
 import Button from '@/components/ui/Button';
 import RippleBackground from '@/components/ui/interactive-ripple-background';
 import { toolRegistry } from '@/config/site';
 import StudioHeroWorkspace from './StudioHeroWorkspace';
+import { useI18n, LocalizedLink } from '@/lib/i18n';
 
-export default function CreatorHero() {
+interface CreatorHeroProps {
+  badge?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  launchStudioText?: string;
+  exploreToolsText?: string;
+  studioHref?: string;
+  toolsHref?: string;
+  locale?: string;
+}
+
+export default function CreatorHero({
+  badge,
+  title,
+  subtitle,
+  description,
+  launchStudioText,
+  exploreToolsText,
+  studioHref = '/studio',
+  toolsHref = '#tools',
+}: CreatorHeroProps) {
+  const { t } = useI18n();
   const count = toolRegistry.filter(tool => tool.status === 'available').length;
+
+  const resolvedBadge = badge || t.home.hero.badge;
+  const resolvedTitle = title || t.home.hero.title;
+  const resolvedSubtitle = subtitle || t.home.hero.subtitle;
+  const resolvedDescription = description || t.home.hero.description;
+  const resolvedLaunchStudio = launchStudioText || t.home.hero.launchStudioText;
+  const resolvedExploreTools = exploreToolsText || t.home.hero.exploreToolsText.replace('{count}', String(count));
+
   return (
     <section className="relative overflow-hidden pt-10 pb-6 sm:pt-14 sm:pb-10">
       <RippleBackground className="py-2">
@@ -13,36 +46,37 @@ export default function CreatorHero() {
             {/* Ambient Floating Pill Badge */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-canvas-elevated)]/90 backdrop-blur shadow-[var(--shadow-button-elevated)] text-xs text-[var(--text-body)] mb-5">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
-              <span className="font-medium">The pre-publish workspace for YouTube creators</span>
+              <span className="font-medium">{resolvedBadge}</span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.035em] text-[var(--text-ink)] leading-[1.08]">
-              <span>Free YouTube Creator Tools</span>
+              <span>{resolvedTitle}</span>
               <span className="sr-only"> &mdash; </span>
               <span className="block text-xl sm:text-3xl font-medium text-[var(--text-muted)] mt-2.5 tracking-normal">
-                Create Smarter, Publish Better
+                {resolvedSubtitle}
               </span>
             </h1>
             <p className="mt-4 text-base sm:text-lg text-[var(--text-body)] max-w-xl mx-auto leading-relaxed">
-              Prepare visuals, calibrate titles, stress-test hooks,
-              and package every upload before releasing.
+              {resolvedDescription}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Button href="/studio" variant="primary" size="lg">Launch Publish Studio</Button>
-              <Button href="#tools" variant="outline" size="lg">Explore {count} creator tools</Button>
+              <LocalizedLink href={studioHref}>
+                <Button variant="primary" size="lg">{resolvedLaunchStudio}</Button>
+              </LocalizedLink>
+              <Button href={toolsHref} variant="outline" size="lg">{resolvedExploreTools}</Button>
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                100% Client-side
+                {t.home.hero.clientSide}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500" aria-hidden="true" />
-                No account required
+                {t.home.hero.noAccount}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" aria-hidden="true" />
-                Private & zero cloud uploads
+                {t.home.hero.zeroUploads}
               </span>
             </div>
           </div>

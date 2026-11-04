@@ -4,13 +4,13 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import Input from '@/components/form/Input';
 import Textarea from '@/components/form/Textarea';
 import Select from '@/components/form/Select';
 import Slider from '@/components/form/Slider';
 import DropZone from '@/components/form/DropZone';
 import Button from '@/components/ui/Button';
+import PageHero from '@/components/ui/PageHero';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Alert from '@/components/feedback/Alert';
 import MetricCard from '@/components/results/MetricCard';
@@ -22,17 +22,19 @@ import { resizeImage } from '@/lib/image-resize';
 import { checkShortsGuide, exportShortsGuide } from '@/lib/shorts-guide';
 import { emptyStudioDraft, parseStudioDraft, studioChecks, studioConfirmations, studioReport, type StudioDraft } from '@/lib/studio';
 import { createStudioZip } from '@/lib/studio-zip';
+import { useI18n, LocalizedLink } from '@/lib/i18n';
 
 interface Asset { file: File; width: number; height: number; format: OutputFormat }
 const DRAFT_KEY = 'creovly-studio-draft-v1';
 
 export default function PublishStudio() {
+  const { t } = useI18n();
   const [draft, setDraft] = useState<StudioDraft>(emptyStudioDraft);
   const [source, setSource] = useState<Asset>();
   const [prepared, setPrepared] = useState<Asset>();
   const [previewSurface, setPreviewSurface] = useState<'mobile' | 'desktop'>('mobile');
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('Start a project. Nothing is saved until you choose Save draft.');
+  const [message, setMessage] = useState(t.studio.messages.initial);
   const [error, setError] = useState('');
   const [hasSaved, setHasSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -52,7 +54,14 @@ export default function PublishStudio() {
   let guide: ReturnType<typeof checkShortsGuide> | undefined;
   try { guide = checkShortsGuide(draft.margins, draft.box); } catch { /* Invalid settings are reported by the readiness check. */ }
 
-  useEffect(() => { try { setHasSaved(!!localStorage.getItem(DRAFT_KEY)); } catch { setMessage('Browser storage is unavailable. You can still work and download your project.'); } }, []);
+  useEffect(() => {
+    try {
+      setHasSaved(!!localStorage.getItem(DRAFT_KEY));
+    } catch {
+      setMessage(t.studio.messages.storageUnavailable);
+    }
+  }, [t.studio.messages.storageUnavailable]);
+
   useEffect(() => () => { request.current++; abort.current?.abort(); }, []);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   function cancel() { request.current++; abort.current?.abort(); setBusy(''); }
@@ -95,11 +104,11 @@ export default function PublishStudio() {
       setHasSaved(true);
       setDirty(false);
       setError('');
-      setMessage('Draft saved in this browser. Images are not saved; reselect them after loading.');
+      setMessage(t.studio.messages.saved);
     } catch {
       setError('Could not save this draft. Browser storage may be full or blocked. Download a project package to keep a copy.');
     }
-  }, [draft]);
+  }, [draft, t.studio.messages.saved]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -125,7 +134,7 @@ export default function PublishStudio() {
       const confirmClear = window.confirm('You have unsaved changes in your workspace. Starting a new project will clear current metadata. Are you sure you want to proceed?');
       if (!confirmClear) return;
     }
-    clearAsset(); setDraft(emptyStudioDraft()); setDirty(false); setError(''); setMessage(hasSaved ? 'New empty project. Your previously saved draft is still available.' : 'New empty project. Nothing is saved until you choose Save draft.');
+    clearAsset(); setDraft(emptyStudioDraft()); setDirty(false); setError(''); setMessage(hasSaved ? 'New empty project. Your previously saved draft is still available.' : t.studio.messages.initial);
   }
 
   function forgetDraft() {
@@ -161,46 +170,60 @@ export default function PublishStudio() {
   }
 
   return <div className="space-y-6">
+    <PageHero className="mb-8">
+      <p className="text-xs font-medium text-[var(--text-body)] mb-2">{t.studio.hero.badge}</p>
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{t.studio.hero.heading}</h1>
+      <p className="mt-3 text-sm sm:text-base text-[var(--text-body)] leading-relaxed">{t.studio.hero.subheading}</p>
+      <p className="mt-3 text-xs text-[var(--text-body)]">{t.studio.hero.footnote}</p>
+    </PageHero>
+
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-xs text-[var(--text-body)]">One local project <span aria-hidden="true">·</span> {dirty ? 'Unsaved changes' : 'Save drafts explicitly'}</p>
+      <p className="text-xs text-[var(--text-body)]">{t.studio.toolbar.oneLocalProject} <span aria-hidden="true">·</span> {dirty ? t.studio.toolbar.unsavedChanges : t.studio.toolbar.saveExplicitly}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={newProject}>New project</Button>
-        <Button variant="outline" size="sm" disabled={!hasSaved || !!busy} onClick={loadDraft}>Load saved draft</Button>
+        <Button variant="ghost" size="sm" onClick={newProject}>{t.studio.toolbar.buttonNew}</Button>
+        <Button variant="outline" size="sm" disabled={!hasSaved || !!busy} onClick={loadDraft}>{t.studio.toolbar.buttonLoadDraft}</Button>
         <Button size="sm" disabled={!!busy} onClick={saveDraft}>
-          <span>Save draft</span>
+          <span>{t.studio.exportSection.buttonSaveDraft}</span>
           <kbd className="ml-1 text-[10px] font-mono opacity-60">Ctrl+S</kbd>
         </Button>
       </div>
     </div>
-    <div ref={errorRef} tabIndex={-1} className="focus-ring rounded">{error && <Alert variant="error" title="Review your project">{error}</Alert>}</div>
+    <div ref={errorRef} tabIndex={-1} className="focus-ring rounded">{error && <Alert variant="error" title={t.studio.toolbar.reviewProject}>{error}</Alert>}</div>
     <p role="status" aria-live="polite" className="text-xs text-[var(--text-body)]">{busy || message}</p>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="space-y-6 min-w-0">
-        <StudioSection title="01. Project & metadata">
+        <StudioSection title={t.studio.sections.titleDesc}>
           <fieldset disabled={!!busy} className="space-y-4 min-w-0">
-            <legend className="sr-only">Project metadata</legend>
-            <div className="grid sm:grid-cols-2 gap-4"><Input id="studio-project" label="Project name" maxLength={120} value={draft.projectName} onChange={event => change({ projectName: event.target.value })} placeholder="My next upload" /><Select id="studio-kind" label="Content type" value={draft.kind} onChange={event => change({ kind: event.target.value as StudioDraft['kind'] }, true)} options={[{ value: 'video', label: 'Standard video' }, { value: 'shorts', label: 'Shorts still-frame planning' }]} /></div>
-            <Input id="studio-channel" label="Channel name (preview only)" maxLength={100} value={draft.channel} onChange={event => change({ channel: event.target.value })} placeholder="Your channel" />
-            <Textarea id="studio-title" label="Video title" rows={2} maxLength={2000} value={draft.title} onChange={event => change({ title: event.target.value })} placeholder="Give your video a clear, accurate title" />
-            <p className="text-xs font-medium" style={{ color: draft.title.length ? `var(--state-${titleTone}-text)` : 'var(--text-body)' }}>{draft.title.length} / 100 character units · {titleRemaining < 0 ? `${-titleRemaining} character${titleRemaining === -1 ? '' : 's'} over the limit` : titleRemaining === 0 ? 'At the limit' : `${titleRemaining} remaining`}</p>
-            <Input id="studio-keyword" label="Topic phrase (optional)" maxLength={100} value={draft.keyword} onChange={event => change({ keyword: event.target.value })} placeholder="Exact phrase to check" />
-            <Textarea id="studio-description" label="Video description" rows={5} maxLength={10000} value={draft.description} onChange={event => change({ description: event.target.value })} placeholder="Describe the video, then add relevant links, credits, and disclosures." />
-            <p className="text-xs" style={{ color: draft.description.length > 5000 ? 'var(--state-error-text)' : 'var(--text-body)' }}>{draft.description.length} / 5,000 character units{draft.description.length > 5000 ? ` · ${draft.description.length - 5000} over the limit` : ''}. Spaces count; emoji may use more than one unit.</p>
+            <legend className="sr-only">{t.studio.sections.titleDesc}</legend>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input id="studio-project" label={t.studio.metadata.projectNameLabel} maxLength={120} value={draft.projectName} onChange={event => change({ projectName: event.target.value })} placeholder={t.studio.metadata.projectNamePlaceholder} />
+              <Select id="studio-kind" label={t.studio.metadata.contentTypeLabel} value={draft.kind} onChange={event => change({ kind: event.target.value as StudioDraft['kind'] }, true)} options={[{ value: 'video', label: t.studio.metadata.contentTypeVideo }, { value: 'shorts', label: t.studio.metadata.contentTypeShorts }]} />
+            </div>
+            <Input id="studio-channel" label={t.studio.metadata.channelLabel} maxLength={100} value={draft.channel} onChange={event => change({ channel: event.target.value })} placeholder={t.studio.metadata.channelPlaceholder} />
+            <Textarea id="studio-title" label={t.studio.titleSection.titleLabel} rows={2} maxLength={2000} value={draft.title} onChange={event => change({ title: event.target.value })} placeholder={t.studio.titleSection.titlePlaceholder} />
+            <p className="text-xs font-medium" style={{ color: draft.title.length ? `var(--state-${titleTone}-text)` : 'var(--text-body)' }}>{draft.title.length} / 100 · {titleRemaining < 0 ? t.studio.metadata.titleOverLimit.replace('{count}', String(-titleRemaining)) : titleRemaining === 0 ? t.studio.metadata.titleAtLimit : t.studio.metadata.titleRemaining.replace('{count}', String(titleRemaining))}</p>
+            <Input id="studio-keyword" label={t.studio.titleSection.keywordLabel} maxLength={100} value={draft.keyword} onChange={event => change({ keyword: event.target.value })} placeholder={t.studio.titleSection.keywordPlaceholder} />
+            <Textarea id="studio-description" label={t.studio.titleSection.descLabel} rows={5} maxLength={10000} value={draft.description} onChange={event => change({ description: event.target.value })} placeholder={t.studio.titleSection.descPlaceholder} />
+            <p className="text-xs" style={{ color: draft.description.length > 5000 ? 'var(--state-error-text)' : 'var(--text-body)' }}>{draft.description.length} / 5,000{draft.description.length > 5000 ? ` · ${t.studio.metadata.descOverLimit.replace('{count}', String(draft.description.length - 5000))}` : ''}. {t.studio.metadata.descSpacesNote}</p>
           </fieldset>
-          {titleAnalysis && <details className="rounded-lg border border-[var(--border-hairline)] p-3"><summary className="text-xs font-medium cursor-pointer focus-ring">Title feedback · basic local checks</summary><ul className="mt-3 list-disc pl-4 text-xs text-[var(--text-body)] space-y-2">{titleAnalysis.notes.map(note => <li key={note}>{note}</li>)}</ul></details>}
+          {titleAnalysis && <details className="rounded-lg border border-[var(--border-hairline)] p-3"><summary className="text-xs font-medium cursor-pointer focus-ring">{t.studio.metadata.titleFeedbackSummary}</summary><ul className="mt-3 list-disc pl-4 text-xs text-[var(--text-body)] space-y-2">{titleAnalysis.notes.map(note => <li key={note}>{note}</li>)}</ul></details>}
         </StudioSection>
-        <StudioSection title={draft.kind === 'video' ? '02. Thumbnail preparation' : '02. Shorts frame & planning guide'}>
-          <DropZone key={fileKey} id="studio-image" label={draft.kind === 'video' ? 'Select project thumbnail' : 'Select Shorts still frame'} maxSizeMB={20} privacyNote="Stays on your device" disabled={!!busy} onFileSelect={selectFile} onError={setError} />
+        <StudioSection title={draft.kind === 'video' ? t.studio.sections.packaging : t.studio.sections.packagingShorts}>
+          <DropZone key={fileKey} id="studio-image" label={draft.kind === 'video' ? t.studio.packagingSection.dropzoneLabel : t.studio.packagingSection.dropzoneShortsLabel} maxSizeMB={20} privacyNote={t.studio.packagingSection.privacyBadge} disabled={!!busy} onFileSelect={selectFile} onError={setError} />
           {source && <p className="text-xs text-[var(--text-body)] break-all">Source: {source.file.name} · {source.width} × {source.height} · {formatBytes(source.file.size)}</p>}
           <fieldset disabled={!!busy} className="grid sm:grid-cols-2 gap-4 min-w-0">
             <legend className="sr-only">Image preparation settings</legend>
-            <Select id="studio-fit" label="Preparation framing" value={draft.fit} onChange={event => change({ fit: event.target.value as StudioDraft['fit'] }, true)} options={[{ value: 'contain', label: 'Fit whole image · white padding' }, { value: 'cover', label: 'Fill canvas · center crop' }]} />
-            {draft.kind === 'video' && <Select id="studio-device" label="Thumbnail upload profile" value={draft.uploadDevice} onChange={event => change({ uploadDevice: event.target.value as StudioDraft['uploadDevice'] })} options={[{ value: 'mobile', label: 'Mobile · 2 MB target' }, { value: 'desktop', label: 'Desktop · 50 MB target' }]} />}
+            <Select id="studio-fit" label={t.studio.packagingSection.framingLabel} value={draft.fit} onChange={event => change({ fit: event.target.value as StudioDraft['fit'] }, true)} options={[{ value: 'contain', label: t.studio.packagingSection.fitContain }, { value: 'cover', label: t.studio.packagingSection.fitCover }]} />
+            {draft.kind === 'video' && <Select id="studio-device" label={t.studio.packagingSection.uploadProfileLabel} value={draft.uploadDevice} onChange={event => change({ uploadDevice: event.target.value as StudioDraft['uploadDevice'] })} options={[{ value: 'mobile', label: t.studio.packagingSection.profileMobile }, { value: 'desktop', label: t.studio.packagingSection.profileDesktop }]} />}
           </fieldset>
-          <p className="text-xs text-[var(--text-body)]">Prepare a {draft.kind === 'video' ? '1280 × 720' : '1080 × 1920'} JPEG with a 2 MB size target. This can crop, enlarge, or reduce detail; transparency becomes white. Review the result. For custom framing, use the <Link href="/tools/youtube-thumbnail-resizer" className="underline focus-ring text-[var(--brand-accent-deep)]">resizer</Link> and reselect its download here.</p>
-          <div className="flex flex-wrap gap-2"><Button disabled={!source || !!busy} onClick={prepare}>Prepare JPEG</Button>{asset && <Button variant="outline" disabled={!!busy} onClick={() => { clearAsset(); setDraft(prev => ({ ...prev, confirmations: {} })); setDirty(true); setMessage('Project image removed.'); }}>Remove image</Button>}{prepared && <Button variant="ghost" disabled={!!busy} onClick={() => { setPrepared(undefined); setDraft(prev => ({ ...prev, confirmations: {} })); setDirty(true); setMessage('Using the original image again.'); }}>Use original</Button>}</div>
+          <p className="text-xs text-[var(--text-body)]">{t.studio.packagingSection.prepareHelp.replace('{dimensions}', draft.kind === 'video' ? '1280 × 720' : '1080 × 1920')} <LocalizedLink href="/tools/youtube-thumbnail-resizer" className="underline focus-ring text-[var(--brand-accent-deep)]">resizer</LocalizedLink>.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!source || !!busy} onClick={prepare}>{t.studio.packagingSection.buttonCompress}</Button>
+            {asset && <Button variant="outline" disabled={!!busy} onClick={() => { clearAsset(); setDraft(prev => ({ ...prev, confirmations: {} })); setDirty(true); setMessage('Project image removed.'); }}>{t.studio.packagingSection.buttonRemoveImage}</Button>}
+            {prepared && <Button variant="ghost" disabled={!!busy} onClick={() => { setPrepared(undefined); setDraft(prev => ({ ...prev, confirmations: {} })); setDirty(true); setMessage('Using the original image again.'); }}>{t.studio.packagingSection.buttonUseOriginal}</Button>}
+          </div>
           {draft.kind === 'shorts' && <>
-            <details className="rounded-lg border border-[var(--border-hairline)] p-3"><summary className="text-xs font-medium cursor-pointer focus-ring">Adjust manual planning margins and content box</summary>
+            <details className="rounded-lg border border-[var(--border-hairline)] p-3"><summary className="text-xs font-medium cursor-pointer focus-ring">{t.studio.packagingSection.presetShorts}</summary>
               <fieldset disabled={!!busy} className="space-y-4 mt-4 min-w-0"><legend className="sr-only">Manual Shorts guide settings</legend>
                 {(['top', 'bottom', 'left', 'right'] as const).map(side => <Slider key={side} id={`studio-margin-${side}`} label={`${side[0].toUpperCase() + side.slice(1)} margin`} min={0} max={45} value={draft.margins[side]} unit="%" onChange={value => change({ margins: { ...draft.margins, [side]: value } })} />)}
                 {(['x', 'y', 'width', 'height'] as const).map(axis => <Slider key={axis} id={`studio-box-${axis}`} label={`Content box ${axis}`} min={axis === 'width' || axis === 'height' ? 1 : 0} max={100} value={draft.box[axis]} unit="%" onChange={value => change({ box: { ...draft.box, [axis]: value } })} />)}
@@ -211,11 +234,11 @@ export default function PublishStudio() {
         </StudioSection>
       </div>
       <div className="space-y-6 min-w-0">
-        <StudioSection title="03. Package preview">
+        <StudioSection title={t.studio.sections.preview}>
           {draft.kind === 'video' && (
             <div className="flex items-center justify-between gap-2 border-b border-[var(--border-hairline)] pb-3 mb-4">
               <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] font-semibold">
-                Simulated YouTube View
+                {t.studio.previewSection.simulatedView}
               </span>
               <Tabs
                 value={previewSurface}
@@ -226,13 +249,13 @@ export default function PublishStudio() {
                     value="mobile"
                     className="px-2.5 py-1 text-[11px] font-medium rounded-md data-[state=active]:bg-[var(--bg-canvas-elevated)] data-[state=active]:text-[var(--text-ink)] data-[state=active]:shadow-xs"
                   >
-                    📱 Mobile Feed
+                    📱 {t.studio.tabs.mobilePreview}
                   </TabsTrigger>
                   <TabsTrigger
                     value="desktop"
                     className="px-2.5 py-1 text-[11px] font-medium rounded-md data-[state=active]:bg-[var(--bg-canvas-elevated)] data-[state=active]:text-[var(--text-ink)] data-[state=active]:shadow-xs"
                   >
-                    💻 Desktop Search
+                    💻 {t.studio.tabs.desktopPreview}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -248,21 +271,21 @@ export default function PublishStudio() {
                     <Image unoptimized src={imageUrl} alt="Current project thumbnail" fill sizes="300px" style={{ objectFit: 'contain' }} />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-xs text-[var(--text-muted)]">
-                      16:9 Thumbnail
+                      {t.studio.previewSection.thumbnailPlaceholder}
                     </div>
                   )}
                 </div>
                 <div className="sm:col-span-7 space-y-1.5 min-w-0">
                   <h4 className="text-xs sm:text-sm font-bold text-[var(--text-ink)] line-clamp-2 leading-snug">
-                    {draft.title || 'Your video title appears here'}
+                    {draft.title || t.studio.previewSection.titlePlaceholder}
                   </h4>
                   <p className="text-[10px] text-[var(--text-muted)] flex items-center gap-1.5 font-mono">
-                    <span className="font-semibold text-[var(--text-body)]">{draft.channel || 'Your channel'}</span>
+                    <span className="font-semibold text-[var(--text-body)]">{draft.channel || t.studio.previewSection.channelDefault}</span>
                     <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                    <span>48K views • 2 hours ago</span>
+                    <span>{t.studio.previewSection.viewsDefault}</span>
                   </p>
                   <p className="text-[11px] text-[var(--text-body)] line-clamp-2 leading-relaxed">
-                    {draft.description || 'Add your description to preview how search snippets render on desktop results.'}
+                    {draft.description || t.studio.previewSection.descPlaceholder}
                   </p>
                 </div>
               </div>
@@ -275,7 +298,7 @@ export default function PublishStudio() {
                   <Image unoptimized src={imageUrl} alt="Current project image" fill sizes="400px" style={{ objectFit: 'contain' }} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-[var(--text-muted)]">
-                    Your {draft.kind === 'video' ? 'thumbnail' : 'still frame'}
+                    {draft.kind === 'video' ? t.studio.previewSection.imagePlaceholder : t.studio.previewSection.stillFramePlaceholder}
                   </div>
                 )}
                 {draft.kind === 'shorts' && asset && guide && (
@@ -287,31 +310,30 @@ export default function PublishStudio() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold line-clamp-2 break-words text-[var(--text-ink)] leading-snug">
-                  {draft.title || 'Your video title appears here'}
+                  {draft.title || t.studio.previewSection.titlePlaceholder}
                 </p>
                 <p className="text-xs text-[var(--text-body)] break-words">
-                  {draft.channel || 'Your channel'} • 48K views • 2 hours ago
+                  {draft.channel || t.studio.previewSection.channelDefault} • {t.studio.previewSection.viewsDefault}
                 </p>
                 {draft.title.length > 50 && draft.kind === 'video' && (
                   <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                    ⚠️ Title is {draft.title.length} chars. Mobile feeds may truncate after ~50 chars.
+                    {t.studio.previewSection.mobileTruncationWarning.replace('{count}', String(draft.title.length))}
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {asset && <MetricCard label={prepared ? 'Prepared image' : 'Selected original'} value={formatBytes(asset.file.size)} subtext={`${asset.width} × ${asset.height} · ${formatLabel(asset.format)}`} />}
-          {asset && imageUrl && <a href={imageUrl} download={`${draft.kind === 'video' ? 'thumbnail' : 'shorts-frame'}.${asset.format === 'image/jpeg' ? 'jpg' : asset.format.split('/')[1]}`} className="inline-flex text-xs font-medium underline text-[var(--brand-accent-deep)] focus-ring rounded">Download current image</a>}
-          {draft.kind === 'shorts' && source && !prepared && Math.abs(source.width / source.height / (9 / 16) - 1) >= .01 && <p className="text-xs text-[var(--state-warning-text)]">Prepare a 9:16 JPEG before using the planning overlay. The export guide fits the whole source frame with padding.</p>}
+          {asset && <MetricCard label={prepared ? t.studio.previewSection.preparedMetric : t.studio.previewSection.originalMetric} value={formatBytes(asset.file.size)} subtext={`${asset.width} × ${asset.height} · ${formatLabel(asset.format)}`} />}
+          {asset && imageUrl && <a href={imageUrl} download={`${draft.kind === 'video' ? 'thumbnail' : 'shorts-frame'}.${asset.format === 'image/jpeg' ? 'jpg' : asset.format.split('/')[1]}`} className="inline-flex text-xs font-medium underline text-[var(--brand-accent-deep)] focus-ring rounded">{t.studio.previewSection.downloadImageLink}</a>}
         </StudioSection>
-        <StudioSection title="04. Pre-publish review">
+        <StudioSection title={t.studio.sections.checks}>
           {/* Visual Readiness Progress Meter */}
           <div className="space-y-2 p-3.5 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-subtle)]">
             <div className="flex items-center justify-between text-xs font-mono">
-              <span className="font-semibold text-[var(--text-ink)]">Readiness Score</span>
+              <span className="font-semibold text-[var(--text-ink)]">{t.studio.checksSection.heading}</span>
               <span className={completed === checks.length ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-[var(--brand-accent)] font-bold'}>
-                {completed} / {checks.length} Checks Completed ({Math.round((completed / checks.length) * 100)}%)
+                {t.studio.checksSection.scoreLabel.replace('{completed}', String(completed)).replace('{total}', String(checks.length))} ({Math.round((completed / checks.length) * 100)}%)
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-[var(--bg-canvas-inset)] overflow-hidden">
@@ -324,32 +346,60 @@ export default function PublishStudio() {
             </div>
             <p className="text-[11px] text-[var(--text-muted)]">
               {completed === checks.length
-                ? '✓ All checks completed. Verify final upload acceptance in YouTube Studio.'
-                : 'Complete all automated checks and your manual confirmations below.'}
+                ? t.studio.checksSection.allCompleted
+                : t.studio.checksSection.needsCompletion}
             </p>
           </div>
 
-          <ul className="space-y-3 pt-2">{checks.filter(check => check.source === 'automatic').map(check => <li key={check.id} className="text-xs"><div className="font-medium" style={{ color: check.passed ? 'var(--state-success-text)' : 'var(--state-warning-text)' }}>{check.passed ? '✓' : '○'} {check.label} · {check.passed ? 'Checked' : 'Needs review'}</div><p className="mt-1 text-[var(--text-body)]">{check.detail}</p></li>)}</ul>
-          <fieldset disabled={!!busy} className="space-y-3 border-t border-[var(--border-hairline)] pt-4"><legend className="text-xs font-semibold px-1">Your manual confirmations</legend>
-            {studioConfirmations.map(item => <label key={item.id} className="flex gap-3 items-start text-xs leading-relaxed cursor-pointer"><input type="checkbox" className="mt-0.5 accent-[var(--brand-accent)] focus-ring" checked={draft.confirmations[item.id] === true} onChange={event => { setDraft(prev => ({ ...prev, confirmations: { ...prev.confirmations, [item.id]: event.target.checked } })); setDirty(true); setMessage('Manual confirmation updated. Save draft to keep your text; confirmations must be reviewed after loading.'); }} /><span>{item.label}</span></label>)}
+          <ul className="space-y-3 pt-2">{checks.filter(check => check.source === 'automatic').map(check => {
+            const localizedLabel = check.id === 'title' ? t.studio.checksSection.checkTitle : check.id === 'asset' ? t.studio.checksSection.checkImage : check.id === 'image-size' ? t.studio.checksSection.checkSize : check.id === 'guide' ? t.studio.checksSection.checkSafeZone : check.label;
+            return (
+              <li key={check.id} className="text-xs">
+                <div className="font-medium" style={{ color: check.passed ? 'var(--state-success-text)' : 'var(--state-warning-text)' }}>
+                  {check.passed ? '✓' : '○'} {localizedLabel} · {check.passed ? t.studio.checksSection.statusChecked : t.studio.checksSection.statusReview}
+                </div>
+                <p className="mt-1 text-[var(--text-body)]">{check.detail}</p>
+              </li>
+            );
+          })}</ul>
+          <fieldset disabled={!!busy} className="space-y-3 border-t border-[var(--border-hairline)] pt-4"><legend className="text-xs font-semibold px-1">{t.studio.checksSection.confirmationsHeading}</legend>
+            {studioConfirmations.map(item => {
+              const confirmMap: Record<string, string> = {
+                accuracy: t.studio.checksSection.confirmAccuracy,
+                readability: t.studio.checksSection.confirmReadability,
+                description: t.studio.checksSection.confirmDescription,
+                rights: t.studio.checksSection.confirmRights,
+                upload: t.studio.checksSection.confirmUpload,
+              };
+              const label = confirmMap[item.id] || item.label;
+              return (
+                <label key={item.id} className="flex gap-3 items-start text-xs leading-relaxed cursor-pointer">
+                  <input type="checkbox" className="mt-0.5 accent-[var(--brand-accent)] focus-ring" checked={draft.confirmations[item.id] === true} onChange={event => { setDraft(prev => ({ ...prev, confirmations: { ...prev.confirmations, [item.id]: event.target.checked } })); setDirty(true); setMessage('Manual confirmation updated. Save draft to keep your text; confirmations must be reviewed after loading.'); }} />
+                  <span>{label}</span>
+                </label>
+              );
+            })}
           </fieldset>
-          <p className="text-xs text-[var(--text-body)]">Editing the project clears manual confirmations. These checks do not verify platform policies, legal compliance, readability, or expected performance.</p>
-          <div className="flex flex-wrap gap-2"><Button disabled={!!busy || (!draft.title.trim() && !asset)} onClick={downloadPackage}>Download project (.zip)</Button><Button variant="outline" disabled={!!busy || !draft.title.trim()} onClick={copyMetadata}>Copy metadata</Button></div>
-          <p className="text-xs text-[var(--text-body)]">The ZIP contains metadata.txt, project.json, checks.txt, and the current image if present. Unfinished checks stay marked in the report. Files are prepared locally; nothing is published to YouTube.</p>
+          <p className="text-xs text-[var(--text-body)]">{t.studio.checksSection.confirmationsNote}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!!busy || (!draft.title.trim() && !asset)} onClick={downloadPackage}>{t.studio.exportSection.buttonDownloadZip}</Button>
+            <Button variant="outline" disabled={!!busy || !draft.title.trim()} onClick={copyMetadata}>{t.studio.exportSection.buttonCopyMetadata}</Button>
+          </div>
+          <p className="text-xs text-[var(--text-body)]">{t.studio.exportSection.description}</p>
         </StudioSection>
       </div>
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
       <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-elevated)] p-4 text-xs text-[var(--text-body)] space-y-2">
         <h3 className="font-semibold text-[var(--text-ink)] flex items-center justify-between">
-          <span>Local Browser Storage</span>
-          <span className="text-[10px] font-mono text-[var(--text-muted)]">OFFLINE</span>
+          <span>{t.studio.resources.storageTitle}</span>
+          <span className="text-[10px] font-mono text-[var(--text-muted)]">{t.studio.resources.storageBadge}</span>
         </h3>
-        <p className="leading-relaxed">Drafts and settings persist in your browser only. Media files stay in memory; re-select them after reloading.</p>
+        <p className="leading-relaxed">{t.studio.resources.storageBody}</p>
         {hasSaved && (
           <div className="pt-1">
             <Button variant="ghost" size="sm" disabled={!!busy} onClick={forgetDraft}>
-              Delete saved draft
+              {t.studio.resources.storageDelete}
             </Button>
           </div>
         )}
@@ -357,29 +407,29 @@ export default function PublishStudio() {
 
       <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-elevated)] p-4 text-xs text-[var(--text-body)] space-y-2">
         <h3 className="font-semibold text-[var(--text-ink)] flex items-center justify-between">
-          <span>Package Contents</span>
-          <span className="text-[10px] font-mono text-[var(--text-muted)]">.ZIP</span>
+          <span>{t.studio.resources.packageTitle}</span>
+          <span className="text-[10px] font-mono text-[var(--text-muted)]">{t.studio.resources.packageBadge}</span>
         </h3>
-        <p className="leading-relaxed">Export bundles project.json, metadata.txt, checks.txt, and your prepared image ready for upload.</p>
+        <p className="leading-relaxed">{t.studio.resources.packageBody}</p>
         <p className="pt-1">
-          <Link href="/checklist" className="underline font-medium text-[var(--brand-accent)] focus-ring">
-            Open pre-publish checklist &rarr;
-          </Link>
+          <LocalizedLink href="/checklist" className="underline font-medium text-[var(--brand-accent)] focus-ring">
+            {t.studio.resources.packageLink}
+          </LocalizedLink>
         </p>
       </div>
 
       <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-elevated)] p-4 text-xs text-[var(--text-body)] space-y-2">
         <h3 className="font-semibold text-[var(--text-ink)] flex items-center justify-between">
-          <span>YouTube Guidelines</span>
-          <span className="text-[10px] font-mono text-[var(--text-muted)]">SPECS</span>
+          <span>{t.studio.resources.guidelinesTitle}</span>
+          <span className="text-[10px] font-mono text-[var(--text-muted)]">{t.studio.resources.guidelinesBadge}</span>
         </h3>
-        <p className="leading-relaxed">Verify platform upload standards before releasing your video to production.</p>
+        <p className="leading-relaxed">{t.studio.resources.guidelinesBody}</p>
         <div className="pt-1 flex flex-col gap-1">
           <a href="https://support.google.com/youtube/answer/72431?hl=en" target="_blank" rel="noreferrer" className="underline text-[var(--brand-accent)] focus-ring">
-            Thumbnail guidance &rarr;
+            {t.studio.resources.guidelinesThumb}
           </a>
           <a href="https://support.google.com/youtube/answer/57407?hl=en" target="_blank" rel="noreferrer" className="underline text-[var(--brand-accent)] focus-ring">
-            Upload guidance &rarr;
+            {t.studio.resources.guidelinesUpload}
           </a>
         </div>
       </div>
